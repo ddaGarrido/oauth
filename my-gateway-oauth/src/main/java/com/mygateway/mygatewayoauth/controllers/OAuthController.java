@@ -15,8 +15,8 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("oauth/token")
 public class OAuthController {
 
-//    @Autowired
-//    private JWTService jwtService;
+    @Autowired
+    private JWTService jwtService;
 
     private AuthenticationManager authenticationManager;
 
@@ -39,8 +39,9 @@ public class OAuthController {
     public ResponseEntity<String> register(@RequestBody @Valid RegisterDTO data) {
         if(repository.findByLogin(data.login()) != null) return ResponseEntity.badRequest().build();
 
+        String token = jwtService.generateToken(data.login());
         //String encryptedPassword = new BCryptPasswordEncoder().encode(data.password());
-        User newUser = new User(data.login(), data.password(), data.role());
+        User newUser = new User(data.login(), data.password(), data.role(), token);
 
         repository.save(newUser);
 
