@@ -1,50 +1,79 @@
 package com.mygateway.mygatewayoauth.controllers;
 
-import com.mygateway.mygatewayoauth.dto.RegisterDTO;
 import com.mygateway.mygatewayoauth.models.User;
 import com.mygateway.mygatewayoauth.repositories.UserRepository;
 import com.mygateway.mygatewayoauth.services.JWTService;
-import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Base64;
+
 @RestController
-@RequestMapping("oauth/token")
+@RequestMapping("/oauth")
 public class OAuthController {
 
     @Autowired
     private JWTService jwtService;
 
-    private AuthenticationManager authenticationManager;
+    @Autowired
+    private UserRepository repository;
 
-    private UserRepository repository = new UserRepository();
+    @PostMapping("/authorize")
+    public ResponseEntity<?> authorize(HttpServletRequest request,
+                                       @RequestParam String grant_type,
+                                       @RequestParam String scope) {
 
-    @PostMapping("/login")
-    public ResponseEntity<String> login(@RequestBody @Valid RegisterDTO data) {
-        User user = repository.findByLogin(data.login());
-        if(user == null) return ResponseEntity.badRequest().build();
+        // todo externalizar isso
+        String authorizationHeader = request.getHeader("Authorization");
+        if (authorizationHeader == null || !authorizationHeader.startsWith("Basic ")) {
+            return ResponseEntity.status(401).body("Unauthorized - missing or invalid Authorization header");
+        }
+        String base64Credentials = authorizationHeader.substring("Basic".length()).trim();
+        String credentials = new String(Base64.getDecoder().decode(base64Credentials));
+        String[] values = credentials.split(":", 2);
+        String clientId = values[0];
+        String clientSecret = values[1];
 
-//        var usernameAndPassword = new UsernamePasswordAuthenticationToken(data.login(), data.password());
-//        var authentication = authenticationManager.authenticate(usernameAndPassword);
+        // todo Validar clientId e clientSecret
+        User user = repository.findByClientIdAndClientSecret(clientId, clientSecret);
+        if (user == null ){//|| !user.isActive()) {
+            return ResponseEntity.status(401).body("Unauthorized - invalid client credentials");
+        }
 
-        //String token = jwtService.generateToken(user.getLogin());
+        // todo Validar grant_type, scope, user roles etc
+//        if (!"password".equals(grant_type) || !"read".equals(scope)) {
+//            return ResponseEntity.badRequest().body("Invalid grant_type or scope");
+//        }
 
-        return ResponseEntity.ok().build();
+        // Gerar token de acesso e todo gerar regresh token
+        String accessToken = jwtService.generateToken(user);
+//        String refreshToken = jwtService.generateRefreshToken(user); // Implemente este método conforme necessário
+
+        // todo externalizar Criar resposta
+        OAuthResponse response = new OAuthResponse();
+        response.setAccessToken(accessToken);
+        response.setTokenType("Bearer");
+        response.setExpiresIn(3600); // Expiração em segundos
+        response.setRefreshToken(null);
+        response.setScope(scope);
+
+        return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/register")
-    public ResponseEntity<String> register(@RequestBody @Valid RegisterDTO data) {
-        if(repository.findByLogin(data.login()) != null) return ResponseEntity.badRequest().build();
+    // Classe para representar a resposta OAuth
+    @Setter
+    @Getter
+    public static class OAuthResponse {
+        private String accessToken;
+        private String tokenType;
+        private int expiresIn;
+        private String refreshToken;
+        private String scope;
 
-        String token = jwtService.generateToken(data.login());
-        //String encryptedPassword = new BCryptPasswordEncoder().encode(data.password());
-        User newUser = new User(data.login(), data.password(), data.role(), token);
-
-        repository.save(newUser);
-
-        return ResponseEntity.ok().build();
+        // getters e setters
     }
 }

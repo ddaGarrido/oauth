@@ -8,13 +8,17 @@ import com.mongodb.client.MongoDatabase;
 import org.bson.codecs.configuration.CodecRegistries;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.codecs.pojo.PojoCodecProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
+@Component
 public class DBConfig {
-    private static final String CONNECTION_STRING = "mongodb+srv://danieldagarrido:tz89bVsh1U7gNr2g@cluster0.y6occph.mongodb.net/?retryWrites=true&w=majority";
-    private static final String DATABASE_NAME = "NewDB";
 
-    public static MongoClient connectMongoDB() {
-        ConnectionString connectionString = new ConnectionString(CONNECTION_STRING);
+    @Autowired
+    private Properties props;
+
+    public MongoClient connectMongoDB() {
+        ConnectionString connectionString = new ConnectionString(props.getMonboDBUrl());
 
         CodecRegistry pojoCodecRegistry = CodecRegistries.fromProviders(PojoCodecProvider.builder().automatic(true).build());
         CodecRegistry codecRegistry = CodecRegistries.fromRegistries(MongoClientSettings.getDefaultCodecRegistry(), pojoCodecRegistry);
@@ -27,8 +31,8 @@ public class DBConfig {
         return MongoClients.create(clientSettings);
     }
 
-    public static MongoDatabase getDatabase() {
+    public MongoDatabase getDatabase() {
         MongoClient mongoClient = connectMongoDB();
-        return mongoClient.getDatabase(DATABASE_NAME);
+        return mongoClient.getDatabase(props.getMongoDBName());
     }
 }
